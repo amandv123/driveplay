@@ -1,160 +1,183 @@
-# DrivePlay
+<div align="center">
 
-> **A Better Way to Watch.**
+# ▶ DRIVEPLAY
 
-DrivePlay is a modern, performance-focused web video player designed to make cloud-hosted video feel more like a dedicated media player.
+### **A Better Way to Watch.**
 
-The project starts with **Google Drive video playback for content the user owns or is authorized to access**, with a long-term goal of providing a polished, fast, and consistent viewing experience across desktop and mobile.
+A fast, focused, and modern web video player for **Google Drive videos you own or are authorized to access**.
 
----
+<br />
 
-## ✨ Vision
+[![Status](https://img.shields.io/badge/status-in%20development-black?style=for-the-badge)](https://github.com/amandv123/driveplay)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-typed-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-fast-F7DF1E?style=for-the-badge&logo=vite&logoColor=111111)](https://vite.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 
-Google Drive is excellent for storing and sharing videos, but its built-in viewing experience is intentionally simple.
+<br />
 
-DrivePlay aims to bridge that gap:
+**[Overview](#-overview) · [Features](#-features) · [Architecture](#-architecture) · [Getting Started](#-getting-started) · [Roadmap](#-roadmap) · [Contributing](#-contributing)**
 
-**Cloud storage simplicity + dedicated-player control.**
-
-The goal is not to recreate a storage platform. It is to build a focused video experience around reliable playback, smooth controls, and performance.
-
----
-
-## 🚧 Project Status
-
-**Early development — media pipeline foundation**
-
-The current priority is validating reliable Google Drive media access and browser playback before building the complete custom player.
-
-### Current foundation
-
-- Google Drive URL parsing
-- Drive file ID extraction
-- Media resolver architecture
-- Native HTML5 video playback probe
-- Loading, playback, and error states
-- Responsive black-and-white visual foundation
-- Production TypeScript/Vite build
-- Performance-oriented architecture
-
-### In progress
-
-- Google Drive API integration
-- Authorized Google account access
-- Reliable media delivery
-- HTTP Range / seeking support
-- Production-grade playback pipeline
-
-> The current Google Drive download URL is a temporary development resolver and is **not considered the final streaming architecture**.
+</div>
 
 ---
 
-## 🎬 Planned Player Experience
+## 🎬 Overview
 
-Once the media pipeline is stable, DrivePlay will evolve toward a full-featured player.
+Google Drive is excellent at **storing and sharing** video files.
 
-### Playback
+DrivePlay is being built around a different idea:
 
-- Play / pause
-- Seek bar
-- 5 / 10 second rewind and forward
-- Volume and mute
-- Playback speed from **0.25× to 3×**
-- Press-and-hold **2× speed boost**
-- Resume from the previous position
-- Smooth long-video seeking
+> **What if watching a Drive video felt more like using a real media player?**
 
-### Display
+DrivePlay combines cloud-hosted video with a purpose-built playback experience focused on:
 
-- Fullscreen
-- Picture-in-Picture
-- Theater / cinema mode
-- Custom thumbnails
-- Responsive desktop and mobile layouts
-- Clean distraction-free interface
+- smooth playback
+- responsive controls
+- mobile-friendly interaction
+- reliable seeking
+- performance
+- a clean, distraction-free interface
 
-### Subtitles
-
-- WebVTT support
-- SRT support where conversion is appropriate
-- Subtitle size controls
-- Subtitle position
-- Opacity controls
-- Timing offset
-
-### Media
-
-- Audio track selection when exposed by the source
-- Quality selection when multiple qualities are available
-- Video metadata and file information
-- Buffering and connection feedback
-
-### Mobile
-
-- Touch-friendly controls
-- Swipe gestures
-- Press-and-hold 2× playback
-- Responsive player controls
-- Mobile-first interaction design
+The project begins with Google Drive and is intentionally designed so the playback engine can later support additional media providers.
 
 ---
 
-## 🧠 Architecture
+## ✨ Features
 
-DrivePlay is being designed around a provider-independent media layer so the player UI does not need to know where the video comes from.
+### Available now
+
+- 🔗 Google Drive URL parsing
+- 🆔 Automatic Drive file ID extraction
+- 🧩 Provider-independent media resolver foundation
+- ▶ Native HTML5 playback probe
+- 📱 Responsive black-and-white UI foundation
+- ⚡ Vite + TypeScript production build
+- 🛡️ Authorized-content-first architecture
+
+### Coming next
+
+- 🔐 Google OAuth / Drive API integration
+- 📡 Reliable media delivery
+- ⏩ Range-based seeking
+- 🎛️ Custom player controls
+- 🔊 Volume and mute
+- ⏪ 5 / 10 second rewind & forward
+- 🐇 0.25×–3× playback speed
+- ✋ Press-and-hold **2×** speed boost
+- 💬 Subtitle support
+- 🎧 Audio track selection
+- 🖥️ Fullscreen & theater mode
+- 📺 Picture-in-Picture
+- 💾 Resume playback
+- 📱 Mobile gestures
+- 🎞️ Quality selection when supported by the source
+
+> **Note:** The current Google Drive download resolver is a development-only implementation. It is not the final streaming architecture.
+
+---
+
+## 🖥️ Preview
+
+> The interface is intentionally minimal while the underlying media pipeline is being engineered.
+
+<div align="center">
+
+**DrivePlay — current foundation**
+
+</div>
+
+The player UI will become the visible layer on top of a more robust media pipeline once Google Drive playback is fully validated.
+
+---
+
+## 🧠 Why DrivePlay?
+
+Most cloud storage services are optimized for **file management**, not for delivering a dedicated viewing experience.
+
+DrivePlay focuses on the last mile:
+
+**Paste → Resolve → Play → Control → Watch**
+
+The project is deliberately being built in that order: reliable media delivery first, premium player experience second.
+
+---
+
+## 🏗️ Architecture
+
+DrivePlay separates **where media comes from** from **how the media is played**.
 
 ```text
-User
- │
- ▼
-Drive URL
- │
- ▼
-URL / File ID Parser
- │
- ▼
-Media Resolver
- │
- ├── Google Drive
- │
- ├── Future providers
- │
- └── Direct media sources
- │
- ▼
-Authorized Media Delivery
- │
- ▼
-Native HTML5 Video
- │
- ▼
-DrivePlay Player
+┌──────────────────────┐
+│     Google Drive     │
+│      share URL       │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│   URL / File ID      │
+│       Parser         │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│    Media Resolver    │
+│                      │
+│  Google Drive        │
+│  Future providers    │
+│  Direct sources      │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│  Authorized Media    │
+│      Delivery        │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│   Native HTML5       │
+│       Video          │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│    DrivePlay UI      │
+└──────────────────────┘
 ```
 
-This separation allows the playback engine and UI to evolve independently from the media provider.
+This separation keeps the player independent from provider-specific delivery logic and makes future integrations much easier.
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Technology | Purpose |
+| Layer | Technology |
 | --- | --- |
-| React | UI architecture |
-| TypeScript | Type safety |
-| Vite | Development and production tooling |
-| Tailwind CSS | UI styling |
-| Zustand | Lightweight application state |
-| Lucide React | Interface icons |
-| HTML5 Media APIs | Native browser playback |
-| WebVTT | Subtitle support |
-| Cloudflare Workers | Backend / media-resolution layer where required |
-| GitHub | Source control and CI/CD |
+| UI | React |
+| Language | TypeScript |
+| Build | Vite |
+| Styling | Tailwind CSS |
+| State | Zustand |
+| Icons | Lucide React |
+| Playback | Native HTML5 Media APIs |
+| Subtitles | WebVTT |
+| Backend / media layer | Cloudflare Workers |
+| Source control | Git + GitHub |
 
-The stack is intentionally lightweight. Dependencies are added only when they provide a clear benefit to playback, reliability, or maintainability.
+### Design principles
+
+- **Native before unnecessary abstraction**
+- **Performance before visual complexity**
+- **Small dependency surface**
+- **Provider-independent media layer**
+- **Authorized access only**
+- **Progressive enhancement**
+- **Mobile-first interaction**
 
 ---
 
-## 📁 Project Structure
+## 📦 Project Structure
 
 ```text
 driveplay/
@@ -180,6 +203,7 @@ driveplay/
 ├── .env.example
 ├── index.html
 ├── package.json
+├── package-lock.json
 ├── tsconfig.json
 ├── tsconfig.app.json
 ├── tsconfig.node.json
@@ -188,35 +212,40 @@ driveplay/
 
 ---
 
-## 🚀 Local Development
+## 🚀 Getting Started
 
-### Requirements
+### Prerequisites
 
-- Node.js 20+
-- npm
-- A modern Chromium, Firefox, or Safari browser
+- **Node.js 20+**
+- **npm**
+- A modern browser
 
-### Install
+### Clone
 
 ```bash
 git clone https://github.com/amandv123/driveplay.git
 cd driveplay
+```
+
+### Install dependencies
+
+```bash
 npm install
 ```
 
-### Start development server
+### Run locally
 
 ```bash
 npm run dev
 ```
 
-### Production build
+### Build for production
 
 ```bash
 npm run build
 ```
 
-### Preview production build
+### Preview the production build
 
 ```bash
 npm run preview
@@ -224,77 +253,89 @@ npm run preview
 
 ---
 
-## ⚡ Performance Philosophy
+## ⚡ Performance
 
-Performance is a core requirement, not a later optimization.
+Performance is a product requirement.
 
 DrivePlay is being designed to:
 
-- Prefer native browser media playback
-- Minimize unnecessary React re-renders
-- Keep high-frequency playback state outside expensive UI paths
-- Use efficient event/update strategies for progress and seeking
-- Avoid unnecessary media transformations
-- Keep the player bundle lean
-- Handle long videos without unnecessary memory growth
-- Treat buffering, seeking, and recovery as first-class states
+- prefer native browser playback
+- minimize unnecessary React re-renders
+- isolate high-frequency playback state
+- keep the player bundle lean
+- avoid unnecessary transcoding
+- handle long videos without avoidable memory growth
+- make seeking and buffering first-class states
+- remain usable on realistic mobile hardware
 
-A feature will not be considered complete simply because it works. It should also behave well on realistic mobile and desktop hardware.
+A feature is not considered finished merely because it works. It should also behave well under real playback conditions.
 
 ---
 
-## 🔐 Privacy & Access
+## 🔐 Security & Privacy
 
-DrivePlay is intended for videos the user **owns or is authorized to access**.
+DrivePlay is intended for **user-owned or otherwise authorized content**.
 
-The project will use Google's supported authorization mechanisms for private Drive content rather than attempting to bypass Drive permissions or access controls.
+Private Google Drive media will use Google's supported authorization mechanisms. The project will not attempt to bypass:
 
-Credentials and access tokens should never be committed to the repository.
+- Drive permissions
+- authentication
+- access controls
+- sharing restrictions
+
+Never commit API keys, OAuth secrets, access tokens, or other credentials to the repository.
 
 ---
 
 ## 🗺️ Roadmap
 
-### Phase 1 — Media Pipeline
+### Phase 01 — Media Pipeline
+
 - [x] Project foundation
 - [x] Drive URL parsing
 - [x] File ID extraction
-- [x] Resolver abstraction
+- [x] Media resolver abstraction
 - [x] Native playback probe
 - [ ] Google Drive API integration
-- [ ] Authorized media access
-- [ ] Reliable range-based seeking
-- [ ] Playback reliability testing
+- [ ] Google authorization flow
+- [ ] Reliable media endpoint
+- [ ] HTTP Range support
+- [ ] Seeking validation
+- [ ] Error / recovery strategy
 
-### Phase 2 — Premium Controls
-- [ ] Custom control bar
+### Phase 02 — Premium Player
+
+- [ ] Custom controls
 - [ ] Seek controls
 - [ ] Playback speed
 - [ ] Temporary 2× hold
 - [ ] Volume / mute
 - [ ] Keyboard shortcuts
 - [ ] Fullscreen
-- [ ] Picture-in-Picture
 - [ ] Theater mode
+- [ ] Picture-in-Picture
 
-### Phase 3 — Media Features
+### Phase 03 — Media Features
+
 - [ ] Subtitles
 - [ ] Audio tracks
 - [ ] Quality selection
 - [ ] Resume playback
-- [ ] Metadata panel
+- [ ] File information
 - [ ] Custom thumbnails
 
-### Phase 4 — Performance & Reliability
-- [ ] Mobile gesture system
-- [ ] Buffering UX
+### Phase 04 — Performance & Reliability
+
+- [ ] Mobile gestures
+- [ ] Buffering states
 - [ ] Retry / recovery
 - [ ] Long-video testing
 - [ ] Cross-browser testing
 - [ ] Performance profiling
 
-### Phase 5 — Production
-- [ ] Accessibility audit
+### Phase 05 — Production
+
+- [ ] Accessibility review
 - [ ] Security review
 - [ ] Production deployment
 - [ ] Monitoring
@@ -303,21 +344,77 @@ Credentials and access tokens should never be committed to the repository.
 
 ---
 
+## 🧭 Development Philosophy
+
+DrivePlay is deliberately being built **pipeline-first**.
+
+That means:
+
+```text
+Reliable media
+      ↓
+Reliable playback
+      ↓
+Premium controls
+      ↓
+Mobile UX
+      ↓
+Production polish
+```
+
+Fancy UI cannot compensate for an unreliable media source.
+
+The player will therefore be built on a stable playback foundation rather than hiding media-delivery problems behind a polished interface.
+
+---
+
 ## 🤝 Contributing
 
-DrivePlay is currently under active development.
+DrivePlay is currently in active development and the internal APIs may change.
 
-The architecture and APIs may change while the media pipeline is being validated. Contributions, bug reports, and technical feedback are welcome once the core playback architecture stabilizes.
+Before opening a pull request:
+
+1. explain the problem or feature
+2. keep changes focused
+3. run `npm run build`
+4. avoid introducing unnecessary dependencies
+5. never include credentials or private media URLs
+
+Bug reports, architecture feedback, and focused improvements are welcome.
+
+---
+
+## 📌 Project Status
+
+| Area | Status |
+| --- | --- |
+| Project foundation | ✅ Ready |
+| UI foundation | ✅ Ready |
+| Drive URL parsing | ✅ Ready |
+| Media resolver | 🟡 In development |
+| Google Drive API | 🟡 Planned next |
+| Playback pipeline | 🟡 In development |
+| Premium player | ⚪ Planned |
+| Mobile gestures | ⚪ Planned |
+| Production release | ⚪ Future |
 
 ---
 
 ## 📄 License
 
-License information will be added before the first stable public release.
+DrivePlay is currently under active development. License information will be added before the first stable public release.
 
 ---
 
-## ⭐ Project
+<div align="center">
 
-**DrivePlay**  
-*A Better Way to Watch.*
+### **DrivePlay**
+**A Better Way to Watch.**
+
+Built for better playback.
+
+<br />
+
+[GitHub](https://github.com/amandv123/driveplay)
+
+</div>
