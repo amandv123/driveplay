@@ -1,9 +1,11 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Play } from "lucide-react";
 import { DriveInput } from "./components/DriveInput";
 import { Player } from "./components/player/Player";
 import { DriveEmbed } from "./components/DriveEmbed";
 import { resolveGoogleDriveMedia } from "./lib/googleDriveResolver";
+import { requestGoogleDriveAccessToken } from "./lib/googleAuth";
+import { createDrivePlaybackSession } from "./lib/driveApi";
 import type { MediaSource } from "./lib/player/types";
 import { usePlayerStore } from "./store/playerStore";
 
@@ -22,7 +24,7 @@ function App() {
     }
   }, [mode, source, playerError]);
 
-  function handleDriveSubmit(fileId: string) {
+  async function handleDriveSubmit(fileId: string) {
     const result = resolveGoogleDriveMedia(fileId);
 
     if (!result.ok) {
@@ -31,15 +33,25 @@ function App() {
     }
 
     usePlayerStore.getState().resetPlayback();
+    setSource(null);
     setPlaybackError(null);
     setMode("custom");
 
-    setSource({
-      url: result.source.url,
-      provider: result.source.provider,
-      fileId: result.source.fileId,
-      title: "DrivePlay video",
-    });
+    try {
+      const accessToken = await requestGoogleDriveAccessToken();
+      const session = await createDrivePlaybackSession(result.source.fileId, accessToken);
+
+      setSource({
+        url: session.streamUrl,
+        provider: result.source.provider,
+        fileId: result.source.fileId,
+        title: session.name || "DrivePlay video",
+      });
+    } catch (error) {
+      setPlaybackError(
+        error instanceof Error ? error.message : "Could not authorize Google Drive playback.",
+      );
+    }
   }
 
   function tryCustomPlayerAgain() {
