@@ -27,3 +27,12 @@ coverage/
 # local tooling
 .cache/
 .temp/
+
+# Cloudflare local state
+.wrangler/
+
+# Local backup files
+*.backup
+*.pre-stream-backup
+
+*.oauth-backup

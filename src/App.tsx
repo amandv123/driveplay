@@ -1,22 +1,52 @@
-﻿import { useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Play } from "lucide-react";
 import { DriveInput } from "./components/DriveInput";
-import { VideoProbe } from "./components/VideoProbe";
+import { Player } from "./components/player/Player";
+import { DriveEmbed } from "./components/DriveEmbed";
 import { resolveGoogleDriveMedia } from "./lib/googleDriveResolver";
+import type { MediaSource } from "./lib/player/types";
+import { usePlayerStore } from "./store/playerStore";
+
+type PlaybackMode = "custom" | "embed";
 
 function App() {
-  const [mediaUrl, setMediaUrl] = useState("");
-  const [fileId, setFileId] = useState("");
+  const [source, setSource] = useState<MediaSource | null>(null);
+  const [mode, setMode] = useState<PlaybackMode>("custom");
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
 
-  function handleDriveSubmit(id: string) {
-    const result = resolveGoogleDriveMedia(id);
+  const playerError = usePlayerStore((state) => state.error);
+
+  useEffect(() => {
+    if (mode === "custom" && source && playerError) {
+      setPlaybackError(playerError.message);
+      setMode("embed");
+    }
+  }, [mode, source, playerError]);
+
+  function handleDriveSubmit(fileId: string) {
+    const result = resolveGoogleDriveMedia(fileId);
 
     if (!result.ok) {
+      setPlaybackError(result.error);
       return;
     }
 
-    setFileId(id);
-    setMediaUrl(result.source.url);
+    usePlayerStore.getState().resetPlayback();
+    setPlaybackError(null);
+    setMode("custom");
+
+    setSource({
+      url: result.source.url,
+      provider: result.source.provider,
+      fileId: result.source.fileId,
+      title: "DrivePlay video",
+    });
+  }
+
+  function tryCustomPlayerAgain() {
+    usePlayerStore.getState().resetPlayback();
+    setPlaybackError(null);
+    setMode("custom");
   }
 
   return (
@@ -43,13 +73,30 @@ function App() {
             <DriveInput onSubmit={handleDriveSubmit} />
           </div>
 
-          {fileId && mediaUrl && (
-            <div className="mt-2 w-full max-w-4xl">
+          {playbackError && mode === "embed" && (
+            <p className="mt-6 max-w-2xl text-sm text-white/60" role="status">
+              Custom playback could not load this video. Switching to Google
+              Drive’s player. Its controls and playback support are managed by
+              Google.
+            </p>
+          )}
+
+          {source && (
+            <div className="mt-8 w-full max-w-4xl">
               <p className="mb-3 text-left text-xs text-white/30">
-                File ID: {fileId}
+                File ID: {source.fileId}
               </p>
 
-              <VideoProbe src={mediaUrl} />
+              {mode === "custom" ? (
+                <Player key={source.url} source={source} />
+              ) : (
+                <DriveEmbed
+                  key={source.fileId}
+                  fileId={source.fileId ?? ""}
+                  title={source.title ?? "Google Drive video"}
+                  onTryCustomPlayer={tryCustomPlayerAgain}
+                />
+              )}
             </div>
           )}
         </div>
@@ -59,4 +106,3 @@ function App() {
 }
 
 export default App;
-
