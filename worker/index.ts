@@ -7,7 +7,7 @@ const DEFAULT_ORIGINS = new Set([
   "http://localhost:5173",
   "http://127.0.0.1:5173",
 ]);
-const TICKET_TTL_SECONDS = 5 * 60;
+const TICKET_TTL_SECONDS = 50 * 60;
 
 function allowedOrigins(env: Env): Set<string> {
   return new Set([
