@@ -393,6 +393,23 @@ cd driveplay
 npm install
 ```
 
+### Configure Google Drive playback
+
+Create a Google OAuth **Web application** client ID with the Google Identity Services token flow enabled and the Drive API available. Copy `.env.example` to `.env.local`, then set:
+
+- `VITE_GOOGLE_CLIENT_ID` to your OAuth client ID.
+- `VITE_MEDIA_API_URL` to the deployed `driveplay-media` Worker URL.
+
+Configure the Cloudflare Worker before testing playback:
+
+```bash
+npx wrangler secret put STREAM_ENCRYPTION_SECRET
+```
+
+Use a randomly generated secret with at least 32 characters. In the Worker environment, set `ALLOWED_ORIGINS` to the comma-separated exact origins of your deployed frontend (for local development, `http://localhost:5173` and `http://127.0.0.1:5173` are already allowed). Never put the Worker secret in `.env.local` or commit it.
+
+When a user submits a link, DrivePlay requests Google Drive read-only authorization and creates a short-lived, encrypted playback ticket. The ticket lets the native video element make Range requests for seeking without putting the raw Google OAuth token in the URL. The file must be accessible to the authorized Google account and downloadable under Drive permissions; this does not bypass sharing restrictions. Browser codec support still determines which media formats can play.
+
 ### 3. Start development
 
 ```bash
