@@ -131,7 +131,7 @@ export default {
     if (isSession && request.method !== "POST") {
       return jsonResponse({ error: "Use POST to create a playback session." }, 405, origin, env);
     }
-    if ((!isMetadata && !isTicketStream) || (isMetadata && request.method !== "GET" && request.method !== "HEAD")) {
+    if ((!isMetadata && !isTicketStream && !isSession) || (isMetadata && request.method !== "GET" && request.method !== "HEAD")) {
       return jsonResponse({ error: "Not found." }, 404, origin, env);
     }
 
