@@ -33,7 +33,7 @@ export function DriveInput({ onSubmit }: DriveInputProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="w-full max-w-4xl">
+    <form onSubmit={handleSubmit} className="mx-auto w-full max-w-4xl">
       <div
         className={[
           "group flex items-center gap-3 rounded-2xl border bg-white/[0.045]",
@@ -75,4 +75,3 @@ export function DriveInput({ onSubmit }: DriveInputProps) {
     </form>
   );
 }
-
