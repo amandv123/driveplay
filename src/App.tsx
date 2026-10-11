@@ -31,10 +31,14 @@ function App() {
     setPreparing(true);
 
     try {
-      // Ask the Worker to validate anonymous byte-stream access before mounting the player.
-      // This is a lightweight HEAD request; the video itself is streamed on demand via Range.
+      // Probe the same anonymous byte-stream path used by playback. A one-byte
+      // Range request avoids downloading the full file and is more reliable than HEAD on Drive.
       const streamUrl = `${mediaApiUrl}/api/public/stream/${encodeURIComponent(result.source.fileId)}`;
-      const response = await fetch(streamUrl, { method: "HEAD", cache: "no-store" });
+      const response = await fetch(streamUrl, {
+        method: "GET",
+        headers: { Range: "bytes=0-0" },
+        cache: "no-store",
+      });
 
       if (!response.ok) {
         let message = "This Drive link cannot be streamed anonymously. Make sure sharing is set to Anyone with the link and downloading is allowed.";
@@ -51,6 +55,9 @@ function App() {
       if (type.toLowerCase().includes("text/html")) {
         throw new Error("Google Drive returned a web page instead of video bytes. This file is not directly streamable.");
       }
+
+      // The probe only needs response headers; cancel its tiny response body before playback.
+      await response.body?.cancel();
 
       setSource({
         url: streamUrl,
