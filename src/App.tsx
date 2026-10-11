@@ -19,7 +19,7 @@ function App() {
       return;
     }
 
-    const mediaApiUrl = import.meta.env.VITE_MEDIA_API_URL?.replace(/\\/+$/, "");
+    const mediaApiUrl = import.meta.env.VITE_MEDIA_API_URL?.replace(/\/+$/, "");
     if (!mediaApiUrl) {
       setPlaybackError("Media server is not configured. Set VITE_MEDIA_API_URL and try again.");
       return;
