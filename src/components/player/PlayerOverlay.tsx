@@ -30,6 +30,20 @@ export const PlayerOverlay = memo(function PlayerOverlay({
           <TriangleAlert size={32} className="text-white/80" aria-hidden />
           <p className="text-base text-white">{error.message}</p>
 
+          {error.kind === 'unsupported' && (
+            <div className="space-y-2 text-sm leading-6 text-white/70">
+              <p>
+                This player uses your browser’s built-in video decoder. Some
+                containers and codecs—especially MKV with 10-bit HEVC—aren’t
+                supported in every browser.
+              </p>
+              <p>
+                Renaming the file or changing its extension won’t change the
+                codec. The original file has not been modified.
+              </p>
+            </div>
+          )}
+
           <button
             type="button"
             onClick={onRetry}
