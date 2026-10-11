@@ -132,11 +132,44 @@ export default {
         // Probe with a one-byte GET so the browser sees the same response type as playback.
         if (range) upstreamHeaders.set("Range", range);
         else if (request.method === "HEAD") upstreamHeaders.set("Range", "bytes=0-0");
-        const upstream = await fetch(
+        let upstream = await fetch(
           `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`,
           { method: request.method === "HEAD" ? "GET" : request.method, headers: upstreamHeaders, redirect: "follow" },
         );
-        const contentType = upstream.headers.get("Content-Type") ?? "";
+        let contentType = upstream.headers.get("Content-Type") ?? "";
+
+        // Large files may require Google's explicit virus-scan confirmation form.
+        // Follow that form only when it names this exact file and targets the
+        // expected Google download host. This does not bypass sharing permissions.
+        if (upstream.ok && contentType.toLowerCase().includes("text/html")) {
+          const html = await upstream.clone().text();
+          const form = html.match(/<form\\b([^>]*)>([\\s\\S]*?)<\\/form>/i);
+          const action = form?.[1].match(/action=["']([^"']+)["']/i)?.[1];
+          const fields = new Map<string, string>();
+          if (form) {
+            for (const input of form[2].matchAll(/<input\\b([^>]*)>/gi)) {
+              const attrs = input[1];
+              const name = attrs.match(/name=["']([^"']+)["']/i)?.[1];
+              const value = attrs.match(/value=["']([^"']*)["']/i)?.[1];
+              if (name && value !== undefined) fields.set(name, value);
+            }
+          }
+
+          if (action && fields.get("id") === fileId && fields.has("confirm")) {
+            const confirmationUrl = new URL(action, upstream.url);
+            if (confirmationUrl.hostname === "drive.usercontent.google.com" &&
+                confirmationUrl.pathname === "/download") {
+              for (const [name, value] of fields) confirmationUrl.searchParams.set(name, value);
+              upstream = await fetch(confirmationUrl.toString(), {
+                method: request.method === "HEAD" ? "GET" : request.method,
+                headers: upstreamHeaders,
+                redirect: "follow",
+              });
+              contentType = upstream.headers.get("Content-Type") ?? "";
+            }
+          }
+        }
+
         if (!upstream.ok || contentType.toLowerCase().includes("text/html")) {
           return jsonResponse({
             error: upstream.status === 403
