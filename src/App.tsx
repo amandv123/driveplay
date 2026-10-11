@@ -1,28 +1,15 @@
-import { useEffect, useState } from "react";
-import { Play } from "lucide-react";
+import { useState } from "react";
+import { LoaderCircle, Play } from "lucide-react";
 import { DriveInput } from "./components/DriveInput";
 import { Player } from "./components/player/Player";
-import { DriveEmbed } from "./components/DriveEmbed";
 import { resolveGoogleDriveMedia } from "./lib/googleDriveResolver";
-import { requestGoogleDriveAccessToken } from "./lib/googleAuth";
-import { createDrivePlaybackSession } from "./lib/driveApi";
 import type { MediaSource } from "./lib/player/types";
 import { usePlayerStore } from "./store/playerStore";
 
-type PlaybackMode = "custom" | "embed";
-
 function App() {
   const [source, setSource] = useState<MediaSource | null>(null);
-  const [mode, setMode] = useState<PlaybackMode>("custom");
   const [playbackError, setPlaybackError] = useState<string | null>(null);
-
-  const playerError = usePlayerStore((state) => state.error);
-
-  useEffect(() => {
-    if (mode === "custom" && source && playerError) {
-      setPlaybackError(playerError.message);
-    }
-  }, [mode, source, playerError]);
+  const [preparing, setPreparing] = useState(false);
 
   async function handleDriveSubmit(fileId: string) {
     const result = resolveGoogleDriveMedia(fileId);
@@ -32,32 +19,50 @@ function App() {
       return;
     }
 
+    const mediaApiUrl = import.meta.env.VITE_MEDIA_API_URL?.replace(/\/+$/, "");
+    if (!mediaApiUrl) {
+      setPlaybackError("Media server is not configured. Set VITE_MEDIA_API_URL and try again.");
+      return;
+    }
+
     usePlayerStore.getState().resetPlayback();
     setSource(null);
     setPlaybackError(null);
-    setMode("custom");
+    setPreparing(true);
 
     try {
-      const accessToken = await requestGoogleDriveAccessToken();
-      const session = await createDrivePlaybackSession(result.source.fileId, accessToken);
+      // Ask the Worker to validate anonymous byte-stream access before mounting the player.
+      // This is a lightweight HEAD request; the video itself is streamed on demand via Range.
+      const streamUrl = `${mediaApiUrl}/api/public/stream/${encodeURIComponent(result.source.fileId)}`;
+      const response = await fetch(streamUrl, { method: "HEAD", cache: "no-store" });
+
+      if (!response.ok) {
+        let message = "This Drive link cannot be streamed anonymously. Make sure sharing is set to Anyone with the link and downloading is allowed.";
+        try {
+          const body = await response.json() as { error?: string };
+          if (body.error) message = body.error;
+        } catch {
+          // Keep the readable default message if the response has no JSON body.
+        }
+        throw new Error(message);
+      }
+
+      const type = response.headers.get("Content-Type") ?? "";
+      if (type.toLowerCase().includes("text/html")) {
+        throw new Error("Google Drive returned a web page instead of video bytes. This file is not directly streamable.");
+      }
 
       setSource({
-        url: session.streamUrl,
+        url: streamUrl,
         provider: result.source.provider,
         fileId: result.source.fileId,
-        title: session.name || "DrivePlay video",
+        title: "DrivePlay video",
       });
     } catch (error) {
-      setPlaybackError(
-        error instanceof Error ? error.message : "Could not authorize Google Drive playback.",
-      );
+      setPlaybackError(error instanceof Error ? error.message : "Could not prepare this video stream.");
+    } finally {
+      setPreparing(false);
     }
-  }
-
-  function tryCustomPlayerAgain() {
-    usePlayerStore.getState().resetPlayback();
-    setPlaybackError(null);
-    setMode("custom");
   }
 
   return (
@@ -77,26 +82,24 @@ function App() {
           </h1>
 
           <p className="mt-5 max-w-xl text-base leading-7 text-white/55 sm:text-lg">
-            A smooth, powerful video player for your Google Drive videos.
+            Paste a public Google Drive link. DrivePlay prepares a stream for its custom player.
           </p>
 
           <div className="mx-auto mt-10 w-full">
             <DriveInput onSubmit={handleDriveSubmit} />
           </div>
 
-          {playbackError && mode === "custom" && (
-            <div className="mx-auto mt-6 flex w-full max-w-2xl flex-col items-center gap-3" role="status">
-              <p className="text-sm text-amber-200/80">
-                Custom playback could not load this video: {playbackError}
-              </p>
-              <button
-                type="button"
-                onClick={() => setMode("embed")}
-                className="rounded-xl border border-white/15 px-4 py-2 text-sm font-medium text-white/80 transition hover:border-white/30 hover:bg-white/5"
-              >
-                Use Google Drive player instead
-              </button>
+          {preparing && (
+            <div className="mt-6 flex items-center justify-center gap-3 text-sm text-white/70" role="status" aria-live="polite">
+              <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden />
+              <span>Preparing video stream… checking public access and connecting to the media server.</span>
             </div>
+          )}
+
+          {playbackError && (
+            <p className="mx-auto mt-6 w-full max-w-2xl text-sm text-amber-200/80" role="alert">
+              {playbackError}
+            </p>
           )}
 
           {source && (
@@ -104,17 +107,7 @@ function App() {
               <p className="mb-3 text-left text-xs text-white/30">
                 File ID: {source.fileId}
               </p>
-
-              {mode === "custom" ? (
-                <Player key={source.url} source={source} />
-              ) : (
-                <DriveEmbed
-                  key={source.fileId}
-                  fileId={source.fileId ?? ""}
-                  title={source.title ?? "Google Drive video"}
-                  onTryCustomPlayer={tryCustomPlayerAgain}
-                />
-              )}
+              <Player key={source.url} source={source} />
             </div>
           )}
         </div>
