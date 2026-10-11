@@ -128,10 +128,13 @@ export default {
       try {
         const upstreamHeaders = new Headers();
         const range = request.headers.get("Range");
+        // Some Drive download responses do not behave consistently for HEAD.
+        // Probe with a one-byte GET so the browser sees the same response type as playback.
         if (range) upstreamHeaders.set("Range", range);
+        else if (request.method === "HEAD") upstreamHeaders.set("Range", "bytes=0-0");
         const upstream = await fetch(
           `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`,
-          { method: request.method, headers: upstreamHeaders, redirect: "follow" },
+          { method: request.method === "HEAD" ? "GET" : request.method, headers: upstreamHeaders, redirect: "follow" },
         );
         const contentType = upstream.headers.get("Content-Type") ?? "";
         if (!upstream.ok || contentType.toLowerCase().includes("text/html")) {
@@ -139,7 +142,11 @@ export default {
             error: upstream.status === 403
               ? "Google Drive denied anonymous download. This link may require access or Google confirmation."
               : "Google Drive did not return a directly playable media stream. Check that public downloading is allowed.",
-          }, upstream.status === 403 ? 403 : 415, origin, env);
+          }, upstream.status === 401 || upstream.status === 403
+            ? 403
+            : upstream.status === 404
+              ? 404
+              : 415, origin, env);
         }
         const headers = corsHeaders(origin, env);
         for (const name of ["Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "Last-Modified", "ETag"]) {
@@ -148,6 +155,7 @@ export default {
         }
         headers.set("Cache-Control", "private, no-store");
         headers.set("X-Content-Type-Options", "nosniff");
+        if (request.method === "HEAD") await upstream.body?.cancel();
         return new Response(request.method === "HEAD" ? null : upstream.body, {
           status: upstream.status,
           headers,
