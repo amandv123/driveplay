@@ -62,7 +62,7 @@ async def transcode(
                 return
             process = await asyncio.create_subprocess_exec(
                 "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
-                "-i", source_url,
+                "-rw_timeout", "15000000", "-i", source_url,
                 "-map", "0:v:0", "-map", "0:a:0?",
                 "-sn", "-dn",
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
@@ -97,6 +97,10 @@ async def transcode(
                 await process.wait()
             if stderr_task and not stderr_task.done():
                 stderr_task.cancel()
+                try:
+                    await stderr_task
+                except asyncio.CancelledError:
+                    pass
             PROCESS_SEMAPHORE.release()
 
     # Check FFmpeg before headers are committed, so a missing binary yields a 503.
