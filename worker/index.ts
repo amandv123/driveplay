@@ -147,7 +147,7 @@ export default {
           const action = form?.[1].match(/action=["']([^"']+)["']/i)?.[1];
           const fields = new Map<string, string>();
           if (form) {
-            for (const input of form[2].matchAll(/<input\\b([^>]*)>/gi)) {
+            for (const input of form[2].matchAll(/<input\b([^>]*)>/gi)) {
               const attrs = input[1];
               const name = attrs.match(/name=["']([^"']+)["']/i)?.[1];
               const value = attrs.match(/value=["']([^"']*)["']/i)?.[1];
