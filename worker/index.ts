@@ -143,7 +143,7 @@ export default {
         // expected Google download host. This does not bypass sharing permissions.
         if (upstream.ok && contentType.toLowerCase().includes("text/html")) {
           const html = await upstream.clone().text();
-          const form = html.match(/<form\\b([^>]*)>([\\s\\S]*?)<\\/form>/i);
+          const form = html.match(/<form\b([^>]*)>([\s\S]*?)<\/form>/i);
           const action = form?.[1].match(/action=["']([^"']+)["']/i)?.[1];
           const fields = new Map<string, string>();
           if (form) {
