@@ -120,6 +120,43 @@ export default {
       return jsonResponse({ ok: true, service: "driveplay-media" }, 200, origin, env);
     }
 
+    // Anonymous/public-first byte proxy. It forwards Range requests to Drive's
+    // normal public download endpoint; it does not use OAuth or bypass permissions.
+    const publicStreamMatch = url.pathname.match(/^\\/api\\/public\\/stream\\/([A-Za-z0-9_-]{10,200})$/);
+    if (publicStreamMatch && (request.method === "GET" || request.method === "HEAD")) {
+      const fileId = publicStreamMatch[1];
+      try {
+        const upstreamHeaders = new Headers();
+        const range = request.headers.get("Range");
+        if (range) upstreamHeaders.set("Range", range);
+        const upstream = await fetch(
+          `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`,
+          { method: request.method, headers: upstreamHeaders, redirect: "follow" },
+        );
+        const contentType = upstream.headers.get("Content-Type") ?? "";
+        if (!upstream.ok || contentType.toLowerCase().includes("text/html")) {
+          return jsonResponse({
+            error: upstream.status === 403
+              ? "Google Drive denied anonymous download. This link may require access or Google confirmation."
+              : "Google Drive did not return a directly playable media stream. Check that public downloading is allowed.",
+          }, upstream.status === 403 ? 403 : 415, origin, env);
+        }
+        const headers = corsHeaders(origin, env);
+        for (const name of ["Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "Last-Modified", "ETag"]) {
+          const value = upstream.headers.get(name);
+          if (value) headers.set(name, value);
+        }
+        headers.set("Cache-Control", "private, no-store");
+        headers.set("X-Content-Type-Options", "nosniff");
+        return new Response(request.method === "HEAD" ? null : upstream.body, {
+          status: upstream.status,
+          headers,
+        });
+      } catch {
+        return jsonResponse({ error: "Could not connect to Google Drive to prepare the public stream." }, 502, origin, env);
+      }
+    }
+
     const metadataPrefix = "/api/drive/files/";
     const streamPrefix = "/api/drive/stream/";
     const sessionPrefix = "/api/drive/session/";
