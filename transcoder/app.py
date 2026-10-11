@@ -75,20 +75,30 @@ async def transcode(
             )
             assert process.stdout is not None and process.stderr is not None
             stderr_task = asyncio.create_task(process.stderr.read())
+            client_disconnected = False
             while True:
                 if await request.is_disconnected():
+                    client_disconnected = True
                     break
                 chunk = await process.stdout.read(64 * 1024)
                 if not chunk:
                     break
                 yield chunk
-            if process.returncode is None:
-                process.terminate()
-                try:
-                    await asyncio.wait_for(process.wait(), timeout=3)
-                except TimeoutError:
-                    process.kill()
-                    await process.wait()
+
+            if client_disconnected:
+                if process.returncode is None:
+                    process.terminate()
+                    try:
+                        await asyncio.wait_for(process.wait(), timeout=3)
+                    except TimeoutError:
+                        process.kill()
+                        await process.wait()
+            else:
+                # EOF means FFmpeg closed stdout. Wait for its exit rather than
+                # racing the process-exit callback and accidentally killing the
+                # encoder before its final MP4 fragment is flushed.
+                await process.wait()
+
             if stderr_task:
                 await stderr_task
         finally:
