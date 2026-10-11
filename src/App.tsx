@@ -1,28 +1,14 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Play } from "lucide-react";
 import { DriveInput } from "./components/DriveInput";
 import { Player } from "./components/player/Player";
-import { DriveEmbed } from "./components/DriveEmbed";
 import { resolveGoogleDriveMedia } from "./lib/googleDriveResolver";
-import { requestGoogleDriveAccessToken } from "./lib/googleAuth";
-import { createDrivePlaybackSession } from "./lib/driveApi";
 import type { MediaSource } from "./lib/player/types";
 import { usePlayerStore } from "./store/playerStore";
 
-type PlaybackMode = "custom" | "embed";
-
 function App() {
   const [source, setSource] = useState<MediaSource | null>(null);
-  const [mode, setMode] = useState<PlaybackMode>("custom");
   const [playbackError, setPlaybackError] = useState<string | null>(null);
-
-  const playerError = usePlayerStore((state) => state.error);
-
-  useEffect(() => {
-    if (mode === "custom" && source && playerError) {
-      setPlaybackError(playerError.message);
-    }
-  }, [mode, source, playerError]);
 
   async function handleDriveSubmit(fileId: string) {
     const result = resolveGoogleDriveMedia(fileId);
@@ -35,29 +21,16 @@ function App() {
     usePlayerStore.getState().resetPlayback();
     setSource(null);
     setPlaybackError(null);
-    setMode("custom");
 
-    try {
-      const accessToken = await requestGoogleDriveAccessToken();
-      const session = await createDrivePlaybackSession(result.source.fileId, accessToken);
-
-      setSource({
-        url: session.streamUrl,
-        provider: result.source.provider,
-        fileId: result.source.fileId,
-        title: session.name || "DrivePlay video",
-      });
-    } catch (error) {
-      setPlaybackError(
-        error instanceof Error ? error.message : "Could not authorize Google Drive playback.",
-      );
-    }
-  }
-
-  function tryCustomPlayerAgain() {
-    usePlayerStore.getState().resetPlayback();
-    setPlaybackError(null);
-    setMode("custom");
+    // Public-first playback: no Google OAuth prompt and no embedded-player fallback.
+    // Google Drive may deny direct media delivery for some files; we surface that
+    // limitation instead of silently switching to a different player or requiring sign-in.
+    setSource({
+      url: result.source.url,
+      provider: result.source.provider,
+      fileId: result.source.fileId,
+      title: "DrivePlay video",
+    });
   }
 
   return (
@@ -77,26 +50,17 @@ function App() {
           </h1>
 
           <p className="mt-5 max-w-xl text-base leading-7 text-white/55 sm:text-lg">
-            A smooth, powerful video player for your Google Drive videos.
+            A focused custom player for directly playable video links.
           </p>
 
           <div className="mx-auto mt-10 w-full">
             <DriveInput onSubmit={handleDriveSubmit} />
           </div>
 
-          {playbackError && mode === "custom" && (
-            <div className="mx-auto mt-6 flex w-full max-w-2xl flex-col items-center gap-3" role="status">
-              <p className="text-sm text-amber-200/80">
-                Custom playback could not load this video: {playbackError}
-              </p>
-              <button
-                type="button"
-                onClick={() => setMode("embed")}
-                className="rounded-xl border border-white/15 px-4 py-2 text-sm font-medium text-white/80 transition hover:border-white/30 hover:bg-white/5"
-              >
-                Use Google Drive player instead
-              </button>
-            </div>
+          {playbackError && (
+            <p className="mx-auto mt-6 w-full max-w-2xl text-sm text-amber-200/80" role="alert">
+              {playbackError}
+            </p>
           )}
 
           {source && (
@@ -104,17 +68,7 @@ function App() {
               <p className="mb-3 text-left text-xs text-white/30">
                 File ID: {source.fileId}
               </p>
-
-              {mode === "custom" ? (
-                <Player key={source.url} source={source} />
-              ) : (
-                <DriveEmbed
-                  key={source.fileId}
-                  fileId={source.fileId ?? ""}
-                  title={source.title ?? "Google Drive video"}
-                  onTryCustomPlayer={tryCustomPlayerAgain}
-                />
-              )}
+              <Player key={source.url} source={source} />
             </div>
           )}
         </div>
