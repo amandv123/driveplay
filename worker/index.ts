@@ -122,7 +122,7 @@ export default {
 
     // Anonymous/public-first byte proxy. It forwards Range requests to Drive's
     // normal public download endpoint; it does not use OAuth or bypass permissions.
-    const publicStreamMatch = url.pathname.match(/^\\/api\\/public\\/stream\\/([A-Za-z0-9_-]{10,200})$/);
+    const publicStreamMatch = url.pathname.match(/^\/api\/public\/stream\/([A-Za-z0-9_-]{10,200})$/);
     if (publicStreamMatch && (request.method === "GET" || request.method === "HEAD")) {
       const fileId = publicStreamMatch[1];
       try {
