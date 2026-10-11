@@ -8,7 +8,7 @@ This is a separate Docker service. It is intentionally not wired into the browse
 - Requires a server-side bearer token of at least 32 characters.
 - Reads from the fixed DrivePlay public-stream Worker URL.
 - Uses FFmpeg to emit fragmented MP4 (H.264 video + AAC stereo audio) progressively.
-- Limits concurrent transcodes (default: one), terminates FFmpeg when the client disconnects, and does not store the original or converted video.
+- Limits concurrent transcodes (default: one), terminates FFmpeg when the client disconnects, applies a 15-second FFmpeg network I/O timeout, and does not store the original or converted video.
 
 This first version is a streaming proof of concept, **not a production transcoder**. It does not support HTTP Range requests against the converted output, so arbitrary seeking in the converted stream is not available yet. Subtitles, multiple audio tracks, HDR tone mapping, and audio/video edge cases are not handled.
 
