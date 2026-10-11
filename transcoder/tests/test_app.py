@@ -37,3 +37,24 @@ def test_missing_server_token_fails_closed(monkeypatch):
         headers={"Authorization": "Bearer test-secret-that-is-at-least-32-characters"},
     )
     assert response.status_code == 503
+
+
+def test_invalid_bearer_token_is_rejected():
+    response = client.get(
+        "/api/transcode/abcdefghijk",
+        headers={"Authorization": "Bearer wrong-secret"},
+    )
+    assert response.status_code == 401
+
+
+def test_ffmpeg_missing_fails_before_stream_headers(monkeypatch):
+    async def missing_ffmpeg(*args, **kwargs):
+        raise FileNotFoundError("ffmpeg not installed")
+
+    monkeypatch.setattr(app.asyncio, "create_subprocess_exec", missing_ffmpeg)
+    response = client.get(
+        "/api/transcode/abcdefghijk",
+        headers={"Authorization": "Bearer test-secret-that-is-at-least-32-characters"},
+    )
+    assert response.status_code == 503
+    assert response.json()["detail"] == "FFmpeg is unavailable."
