@@ -16,22 +16,34 @@ AUTH_HEADERS = {"Authorization": f"Bearer {TOKEN}"}
 client = TestClient(app.app)
 
 
+class FakePipe:
+    def __init__(self, data: bytes = b"", block: bool = False):
+        self.data = data
+        self.block = block
+        self.read_once = False
+        self.closed = False
+
+    async def read(self, size: int = -1) -> bytes:
+        if self.block and not self.closed:
+            await asyncio.Future()
+        if self.read_once:
+            return b""
+        self.read_once = True
+        return self.data if size < 0 else self.data[:size]
+
+    def feed_eof(self) -> None:
+        self.closed = True
+
+
 class FakeProcess:
     def __init__(self, output: bytes = b"", exit_code: int = 0, stderr: bytes = b"", block: bool = False):
-        self.stdout = asyncio.StreamReader()
-        self.stderr = asyncio.StreamReader()
+        self.stdout = FakePipe(output, block=block)
+        self.stderr = FakePipe(stderr)
         self.returncode = None
         self.exit_code = exit_code
         self.terminated = False
         self.killed = False
         self.wait_called = False
-        if not block:
-            if output:
-                self.stdout.feed_data(output)
-            self.stdout.feed_eof()
-        if stderr:
-            self.stderr.feed_data(stderr)
-        self.stderr.feed_eof()
 
     async def wait(self):
         self.wait_called = True
@@ -139,8 +151,7 @@ def test_disconnect_stops_ffmpeg_and_releases_semaphore(monkeypatch):
     async def run():
         request = FakeRequest(disconnect_after_first_check=True)
         response = await app.transcode("abcdefghijk", request, authorization=f"Bearer {TOKEN}")
-        chunks = [chunk async for chunk in response.body_iterator]
-        return chunks
+        return [chunk async for chunk in response.body_iterator]
 
     chunks = asyncio.run(run())
 
@@ -157,11 +168,7 @@ def test_cancelled_stream_stops_ffmpeg_and_releases_semaphore(monkeypatch):
         request = FakeRequest()
         response = await app.transcode("abcdefghijk", request, authorization=f"Bearer {TOKEN}")
         consumer = asyncio.create_task(response.body_iterator.__anext__())
-        # Give the async generator time to spawn FFmpeg and begin its blocked read.
-        for _ in range(50):
-            await asyncio.sleep(0.01)
-            if not process.wait_called and request.checks >= 2:
-                break
+        await asyncio.sleep(0.05)
         consumer.cancel()
         with pytest.raises(asyncio.CancelledError):
             await consumer
