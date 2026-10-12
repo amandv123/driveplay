@@ -68,17 +68,18 @@ async def _stop_process(process: asyncio.subprocess.Process) -> None:
         process.terminate()
     except ProcessLookupError:
         pass
-    try:
-        await asyncio.wait_for(asyncio.shield(process.wait()), timeout=PROCESS_TERMINATE_TIMEOUT)
-    except TimeoutError:
+
+    wait_task = asyncio.create_task(process.wait())
+    done, _ = await asyncio.wait({wait_task}, timeout=PROCESS_TERMINATE_TIMEOUT)
+    if not done:
         try:
             process.kill()
         except ProcessLookupError:
             pass
-        await process.wait()
+    await wait_task
 
 
-async def _cancel_task(task: asyncio.Task[object] | None) -> None:
+async def _cancel_task(task: asyncio.Task | None) -> None:
     if task is None or task.done():
         return
     task.cancel()
@@ -158,7 +159,7 @@ async def transcode(
             return_code = await process.wait()
             stderr_output = await stderr_task
             if return_code != 0:
-                # The response headers are already sent for streaming responses;
+                # Response headers are already sent for streaming responses;
                 # record the failure without logging tokens or request headers.
                 logger.error(
                     "FFmpeg exited with code %s for file %s: %s",
