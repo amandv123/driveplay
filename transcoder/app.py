@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import json
+import json
 import logging
 import os
 import re
@@ -23,6 +24,7 @@ PROCESS_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_TRANSCODES)
 CHUNK_SIZE = 64 * 1024
 DISCONNECT_POLL_INTERVAL = 0.2
 PROCESS_TERMINATE_TIMEOUT = 3
+PROBE_TIMEOUT = 30
 PROBE_TIMEOUT = 30
 logger = logging.getLogger(__name__)
 
@@ -104,6 +106,68 @@ async def _probe_source(source_url: str) -> list[dict[str, object]]:
         return [stream for stream in streams if isinstance(stream, dict)]
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise HTTPException(status_code=422, detail="Source video returned invalid probe metadata.") from exc
+
+
+def choose_codecs(streams: list[dict[str, object]]) -> tuple[str, str]:
+    """Copy browser-friendly streams and transcode only incompatible codecs."""
+    video = next((s for s in streams if s.get("codec_type") == "video"), None)
+    audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
+    if video is None:
+        raise HTTPException(status_code=422, detail="Source has no video stream.")
+
+    video_codec = "copy" if (
+        video.get("codec_name") == "h264" and video.get("pix_fmt") == "yuv420p"
+    ) else "libx264"
+    channels = audio.get("channels", 2) if audio else 2
+    audio_codec = "copy" if (
+        audio and audio.get("codec_name") == "aac"
+        and isinstance(channels, int) and channels <= 2
+    ) else "aac"
+    return video_codec, audio_codec
+
+
+async def _probe_source(source_url: str) -> list[dict[str, object]]:
+    """Probe the fixed, server-controlled source URL for codec metadata."""
+    if shutil.which("ffprobe") is None:
+        raise HTTPException(status_code=503, detail="FFprobe is unavailable.")
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "ffprobe", "-v", "error", "-rw_timeout", "15000000",
+            "-show_entries", "stream=codec_type,codec_name,pix_fmt,channels",
+            "-of", "json", source_url,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=PROBE_TIMEOUT)
+    except TimeoutError as exc:
+        if "process" in locals() and process.returncode is None:
+            await _stop_process(process)
+        raise HTTPException(status_code=504, detail="Timed out while probing source video.") from exc
+    except OSError as exc:
+        raise HTTPException(status_code=503, detail="FFprobe could not be started.") from exc
+
+    if process.returncode != 0:
+        logger.warning("FFprobe exited with code %s: %s", process.returncode,
+                       stderr.decode("utf-8", errors="replace")[-2000:])
+        raise HTTPException(status_code=422, detail="Source video could not be probed.")
+    try:
+        metadata = json.loads(stdout.decode("utf-8"))
+        streams = metadata.get("streams", [])
+        if not isinstance(streams, list):
+            raise ValueError("Invalid streams")
+        return [s for s in streams if isinstance(s, dict)]
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="Invalid source probe metadata.") from exc
+
+
+class SemaphoreLease:
+    """Release an acquired semaphore at most once."""
+    def __init__(self) -> None:
+        self._released = False
+
+    def release(self) -> None:
+        if not self._released:
+            self._released = True
+            PROCESS_SEMAPHORE.release()
 
 
 async def _wait_for_disconnect(request: Request) -> None:

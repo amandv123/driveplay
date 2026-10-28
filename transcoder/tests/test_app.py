@@ -78,7 +78,14 @@ def fake_ffmpeg(monkeypatch, process: FakeProcess):
     async def create_subprocess_exec(*args, **kwargs):
         return process
 
+    async def fake_probe(_source_url):
+        return [
+            {"codec_type": "video", "codec_name": "hevc", "pix_fmt": "yuv420p10le"},
+            {"codec_type": "audio", "codec_name": "ac3", "channels": 6},
+        ]
+
     monkeypatch.setattr(app.asyncio, "create_subprocess_exec", create_subprocess_exec)
+    monkeypatch.setattr(app, "_probe_source", fake_probe)
 
 
 def test_health_is_public():
@@ -199,3 +206,24 @@ def test_process_stop_escalates_to_kill(monkeypatch):
 
     assert process.terminated
     assert process.killed
+
+
+
+def test_choose_codecs_copies_browser_friendly_streams():
+    assert app.choose_codecs([
+        {"codec_type": "video", "codec_name": "h264", "pix_fmt": "yuv420p"},
+        {"codec_type": "audio", "codec_name": "aac", "channels": 2},
+    ]) == ("copy", "copy")
+
+
+def test_choose_codecs_transcodes_incompatible_streams():
+    assert app.choose_codecs([
+        {"codec_type": "video", "codec_name": "hevc", "pix_fmt": "yuv420p10le"},
+        {"codec_type": "audio", "codec_name": "ac3", "channels": 6},
+    ]) == ("libx264", "aac")
+
+
+def test_choose_codecs_requires_video_stream():
+    with pytest.raises(Exception) as exc:
+        app.choose_codecs([{"codec_type": "audio", "codec_name": "aac", "channels": 2}])
+    assert getattr(exc.value, "status_code", None) == 422
