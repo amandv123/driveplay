@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import json
 import logging
 import os
 import re
@@ -22,11 +23,12 @@ PROCESS_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_TRANSCODES)
 CHUNK_SIZE = 64 * 1024
 DISCONNECT_POLL_INTERVAL = 0.2
 PROCESS_TERMINATE_TIMEOUT = 3
+PROBE_TIMEOUT = 30
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="DrivePlay Transcoder",
-    version="0.1.0",
+    version="0.2.0",
     description="Opt-in FFmpeg streaming for public media already accessible through DrivePlay.",
 )
 
@@ -43,16 +45,65 @@ def authorize(authorization: str | None) -> None:
         raise HTTPException(status_code=401, detail="Unauthorized.")
 
 
-class SemaphoreLease:
-    """Release a previously acquired semaphore at most once."""
+def choose_codecs(streams: list[dict[str, object]]) -> tuple[str, str]:
+    """Copy already browser-friendly streams; transcode only incompatible streams."""
+    video = next((stream for stream in streams if stream.get("codec_type") == "video"), None)
+    audio = next((stream for stream in streams if stream.get("codec_type") == "audio"), None)
+    if video is None:
+        raise HTTPException(status_code=422, detail="Source has no video stream.")
 
-    def __init__(self) -> None:
-        self._released = False
+    video_codec = (
+        "copy"
+        if video.get("codec_name") == "h264" and video.get("pix_fmt") == "yuv420p"
+        else "libx264"
+    )
+    audio_channels = audio.get("channels", 2) if audio else 2
+    audio_codec = (
+        "copy"
+        if audio
+        and audio.get("codec_name") == "aac"
+        and isinstance(audio_channels, int)
+        and audio_channels <= 2
+        else "aac"
+    )
+    return video_codec, audio_codec
 
-    def release(self) -> None:
-        if not self._released:
-            self._released = True
-            PROCESS_SEMAPHORE.release()
+
+async def _probe_source(source_url: str) -> list[dict[str, object]]:
+    """Read stream metadata only; never accepts a caller-supplied URL."""
+    if shutil.which("ffprobe") is None:
+        raise HTTPException(status_code=503, detail="FFprobe is unavailable.")
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "ffprobe", "-v", "error", "-rw_timeout", "15000000",
+            "-show_entries", "stream=codec_type,codec_name,pix_fmt,channels",
+            "-of", "json", source_url,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=PROBE_TIMEOUT)
+    except TimeoutError as exc:
+        if "process" in locals() and process.returncode is None:
+            await _stop_process(process)
+        raise HTTPException(status_code=504, detail="Timed out while probing the source video.") from exc
+    except OSError as exc:
+        raise HTTPException(status_code=503, detail="FFprobe could not be started.") from exc
+
+    if process.returncode != 0:
+        logger.warning(
+            "FFprobe exited with code %s: %s",
+            process.returncode,
+            stderr.decode("utf-8", errors="replace")[-2000:],
+        )
+        raise HTTPException(status_code=422, detail="Source video could not be probed.")
+    try:
+        result = json.loads(stdout.decode("utf-8"))
+        streams = result.get("streams", [])
+        if not isinstance(streams, list):
+            raise ValueError("Invalid stream list")
+        return [stream for stream in streams if isinstance(stream, dict)]
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="Source video returned invalid probe metadata.") from exc
 
 
 async def _wait_for_disconnect(request: Request) -> None:
@@ -110,6 +161,12 @@ async def transcode(
         raise HTTPException(status_code=429, detail="A transcode is already running. Try again shortly.")
 
     lease = SemaphoreLease()
+    try:
+        streams = await _probe_source(source_url)
+        video_codec, audio_codec = choose_codecs(streams)
+    except BaseException:
+        lease.release()
+        raise
 
     async def stream() -> AsyncIterator[bytes]:
         process: asyncio.subprocess.Process | None = None
@@ -120,16 +177,26 @@ async def transcode(
             if await request.is_disconnected():
                 return
 
-            process = await asyncio.create_subprocess_exec(
+            args = [
                 "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
                 "-rw_timeout", "15000000", "-i", source_url,
                 "-map", "0:v:0", "-map", "0:a:0?",
                 "-sn", "-dn",
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
-                "-pix_fmt", "yuv420p",
-                "-c:a", "aac", "-b:a", "160k", "-ac", "2",
+                "-c:v", video_codec,
+            ]
+            if video_codec != "copy":
+                args.extend(["-preset", os.getenv("TRANSCODE_PRESET", "veryfast"),
+                             "-crf", os.getenv("TRANSCODE_CRF", "23"),
+                             "-pix_fmt", "yuv420p"])
+            args.extend(["-c:a", audio_codec])
+            if audio_codec != "copy":
+                args.extend(["-b:a", os.getenv("TRANSCODE_AUDIO_BITRATE", "160k"), "-ac", "2"])
+            args.extend([
                 "-movflags", "frag_keyframe+empty_moov+default_base_moof",
                 "-f", "mp4", "pipe:1",
+            ])
+            process = await asyncio.create_subprocess_exec(
+                *args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -155,12 +222,9 @@ async def transcode(
                     break
                 yield chunk
 
-            # stdout EOF is not enough: wait for FFmpeg to flush and exit.
             return_code = await process.wait()
             stderr_output = await stderr_task
             if return_code != 0:
-                # Response headers are already sent for streaming responses;
-                # record the failure without logging tokens or request headers.
                 logger.error(
                     "FFmpeg exited with code %s for file %s: %s",
                     return_code,
@@ -176,8 +240,6 @@ async def transcode(
                 await _cancel_task(stderr_task)
             lease.release()
 
-    # StreamingResponse can be cancelled before its generator is first iterated.
-    # Its call-level finally guarantees the semaphore lease is still released.
     class LeasedStreamingResponse(StreamingResponse):
         async def __call__(self, scope, receive, send) -> None:
             try:
