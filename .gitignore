@@ -36,3 +36,8 @@ coverage/
 *.pre-stream-backup
 
 *.oauth-backup
+
+# Python cache
+__pycache__/
+*.py[cod]
+.venv/
