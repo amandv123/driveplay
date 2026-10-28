@@ -159,6 +159,17 @@ async def _probe_source(source_url: str) -> list[dict[str, object]]:
         raise HTTPException(status_code=422, detail="Invalid source probe metadata.") from exc
 
 
+class SemaphoreLease:
+    """Release an acquired semaphore at most once."""
+    def __init__(self) -> None:
+        self._released = False
+
+    def release(self) -> None:
+        if not self._released:
+            self._released = True
+            PROCESS_SEMAPHORE.release()
+
+
 async def _wait_for_disconnect(request: Request) -> None:
     while not await request.is_disconnected():
         await asyncio.sleep(DISCONNECT_POLL_INTERVAL)
